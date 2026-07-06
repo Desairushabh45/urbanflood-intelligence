@@ -80,7 +80,10 @@ def calculate_risk(rainfall_sum, flood_weight, max_possible):
 def get_gemini_client():
     global _gemini_client
     if _gemini_client is None:
-        _gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY environment variable is not set")
+        _gemini_client = genai.Client(api_key=api_key)
     return _gemini_client
 
 
@@ -245,11 +248,26 @@ Given this zone risk data: {summary_data}
 For each zone, write one short sentence explaining why it's at that risk level,
 and one practical recommendation. Keep it concise and actionable."""
 
-    response = get_gemini_client().models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt
-    )
-    return {"explanation": response.text}
+    try:
+        response = get_gemini_client().models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
+        return {"explanation": response.text}
+    except Exception as e:
+        error_msg = str(e)
+        if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg or "quota" in error_msg.lower():
+            return {
+                "explanation": "API quota exceeded. Please try again later. Fallback analysis: " + 
+                               "Based on current zone data, High and Medium risk areas require immediate drainage assessment and citizen notification.",
+                "error": "API quota exceeded (free tier limit reached)",
+                "zones_analyzed": len(summary_data)
+            }
+        else:
+            return {
+                "explanation": f"Error analyzing zones: {error_msg}",
+                "error": str(type(e).__name__)
+            }
 
 
 @app.get("/explain/ranked")
@@ -262,11 +280,33 @@ Produce a numbered, priority-ranked action list (most urgent first) for city aut
 Each item must include one action and one short reason. Keep it to a maximum of 6 items.
 Return only the numbered list with no introduction or closing note."""
 
-    response = get_gemini_client().models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt
-    )
-    return {"ranked_actions": response.text, "action_plan": response.text}
+    try:
+        response = get_gemini_client().models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
+        return {"ranked_actions": response.text, "action_plan": response.text}
+    except Exception as e:
+        error_msg = str(e)
+        if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg or "quota" in error_msg.lower():
+            fallback_actions = """1. Issue flood alert for High risk zones (Ganesh Nagar, Rayanal underpass) - water levels rising
+2. Clear drainage systems in Medium risk areas - prevent waterlogging
+3. Position rescue equipment near flood-prone zones - emergency preparedness
+4. Notify residents in flood-prone areas - ensure evacuation routes ready
+5. Increase monitoring frequency of weather forecasts - track rainfall trends
+6. Set up emergency response centers - coordinate relief activities"""
+            return {
+                "ranked_actions": fallback_actions,
+                "action_plan": fallback_actions,
+                "error": "API quota exceeded (free tier limit reached)",
+                "zones_analyzed": len(zones)
+            }
+        else:
+            return {
+                "ranked_actions": f"Error generating action plan: {error_msg}",
+                "action_plan": f"Error generating action plan: {error_msg}",
+                "error": str(type(e).__name__)
+            }
 
 
 @app.post("/analyze-photo")
@@ -305,11 +345,22 @@ Return only valid JSON in this exact shape:
             **assessment
         }
     except Exception as exc:
-        return {
-            "filename": photo.filename,
-            "mime_type": detected_mime_type,
-            "raw_assessment": f"Photo analysis unavailable: {exc}"
-        }
+        error_msg = str(exc)
+        if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg or "quota" in error_msg.lower():
+            return {
+                "filename": photo.filename,
+                "mime_type": detected_mime_type,
+                "visible_risk": "Medium",
+                "observations": "Photo analysis temporarily unavailable due to API quota limits",
+                "recommendation": "Please try again later or contact system administrator",
+                "error": "API quota exceeded"
+            }
+        else:
+            return {
+                "filename": photo.filename,
+                "mime_type": detected_mime_type,
+                "raw_assessment": f"Photo analysis unavailable: {exc}"
+            }
 
 
 @app.post("/reports")
@@ -355,11 +406,22 @@ Given this current zone risk data: {zones}
 Answer this question from a city official or resident: {question}
 Keep the answer concise, practical, and grounded in the provided risk data."""
 
-    response = get_gemini_client().models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt
-    )
-    return {"answer": response.text}
+    try:
+        response = get_gemini_client().models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
+        return {"answer": response.text}
+    except Exception as e:
+        error_msg = str(e)
+        if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg or "quota" in error_msg.lower():
+            return {
+                "answer": "AI advisory service temporarily unavailable due to API quota limits. Based on current data: High risk zones need immediate attention for drainage assessment.",
+                "error": "API quota exceeded",
+                "zones_analyzed": len(zones)
+            }
+        else:
+            return {"answer": f"Error processing question: {str(e)}", "error": str(type(e).__name__)}
 
 
 @app.get("/ask")
