@@ -1,0 +1,8 @@
+[
+  {"name": "Ganesh Nagar", "lat": 15.3480, "lon": 75.1420, "flood_weight": 0.9},
+  {"name": "Old Hubballi", "lat": 15.3547, "lon": 75.1367, "flood_weight": 0.85},
+  {"name": "Rayanal (HDB bypass)", "lat": 15.4050, "lon": 75.1000, "flood_weight": 0.8},
+  {"name": "Vidyanagar", "lat": 15.3550, "lon": 75.1250, "flood_weight": 0.5},
+  {"name": "Keshwapur", "lat": 15.3600, "lon": 75.1300, "flood_weight": 0.5},
+  {"name": "Unkal", "lat": 15.3850, "lon": 75.1150, "flood_weight": 0.6}
+]

@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UrbanFlood Intelligence — Hubballi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  :root {
+    --bg: #0B1420;
+    --panel: #131F2E;
+    --panel-2: #0F1A27;
+    --border: #24384A;
+    --text: #E8EEF3;
+    --muted: #7C93A8;
+    --low: #2E8B7C;
+    --medium: #D9A441;
+    --high: #D14D4D;
+    --rain: #4A9FD9;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(74,159,217,0.08), transparent),
+      var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 24px 80px; }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 16px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 24px;
+    margin-bottom: 32px;
+  }
+
+  .eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    color: var(--rain);
+    text-transform: uppercase;
+    margin: 0 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .pulse {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--low);
+    box-shadow: 0 0 0 0 rgba(46,139,124,0.6);
+    animation: pulse 2.2s infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(46,139,124,0.5); }
+    70% { box-shadow: 0 0 0 8px rgba(46,139,124,0); }
+    100% { box-shadow: 0 0 0 0 rgba(46,139,124,0); }
+  }
+
+  h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: clamp(28px, 4vw, 40px);
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  h1 span { color: var(--muted); font-weight: 500; }
+
+  .meta { text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted); }
+  .meta div { margin-bottom: 6px; }
+
+  button {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease;
+  }
+  button:hover { border-color: var(--rain); }
+  button:focus-visible { outline: 2px solid var(--rain); outline-offset: 2px; }
+  button:disabled { opacity: 0.5; cursor: wait; }
+
+  .map-section {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 24px;
+  }
+  .map-section h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 16px;
+    margin: 0;
+    color: var(--text);
+  }
+  .map-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .map-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  #incidentToggle.active {
+    border-color: var(--high);
+    background: color-mix(in srgb, var(--high) 14%, var(--panel));
+  }
+  #reportToggle.active {
+    border-color: var(--rain);
+    background: color-mix(in srgb, var(--rain) 14%, var(--panel));
+  }
+  #map {
+    height: 420px;
+    width: 100%;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .leaflet-popup-content { font-family: 'Inter', sans-serif; font-size: 13px; margin: 10px 12px; }
+  .leaflet-popup-content b { font-family: 'Space Grotesk', sans-serif; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    display: flex;
+    gap: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: var(--level-color, var(--border));
+  }
+
+  .gauge-col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .gauge {
+    width: 12px; height: 88px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+  .gauge-fill {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    height: 4%;
+    background: var(--rain);
+    transition: height 0.7s cubic-bezier(0.19,1,0.22,1), background 0.7s ease;
+  }
+  .gauge-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  .card-body { flex: 1; min-width: 0; }
+
+  .zone-name {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 17px;
+    font-weight: 600;
+    margin: 0 0 8px;
+  }
+
+  .badge {
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border-radius: 20px;
+    background: color-mix(in srgb, var(--level-color, var(--muted)) 18%, transparent);
+    color: var(--level-color, var(--muted));
+    border: 1px solid color-mix(in srgb, var(--level-color, var(--muted)) 45%, transparent);
+    margin-bottom: 12px;
+  }
+
+  .readouts {
+    display: flex;
+    gap: 20px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .readout .val { font-size: 18px; color: var(--rain); }
+  .readout .lbl { font-size: 10px; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+
+  .outlook {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 24px;
+    overflow: hidden;
+  }
+  .outlook summary {
+    cursor: pointer;
+    list-style: none;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .outlook summary::-webkit-details-marker { display: none; }
+  .outlook summary::after {
+    content: '+';
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--rain);
+    font-size: 18px;
+  }
+  .outlook[open] summary::after { content: '-'; }
+  .outlook-body {
+    border-top: 1px solid var(--border);
+    padding: 16px 20px 20px;
+  }
+  .forecast-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+  }
+  .forecast-card {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .forecast-card h3 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 15px;
+    margin: 0 0 8px;
+  }
+  .chart-wrap {
+    height: 130px;
+    margin: 8px 0 12px;
+  }
+  .daily-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .daily-strip span {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px;
+    min-width: 0;
+  }
+  .daily-strip strong {
+    color: var(--text);
+    display: block;
+    font-size: 12px;
+    margin-bottom: 2px;
+  }
+
+  .advisory {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 28px;
+    margin-bottom: 24px;
+  }
+  .advisory h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 20px;
+    margin: 0 0 4px;
+  }
+  .advisory .sub { color: var(--muted); font-size: 13px; margin: 0 0 20px; }
+
+  .advisory-zone {
+    font-weight: 600;
+    color: var(--text);
+    margin: 20px 0 6px;
+  }
+  .advisory-zone:first-child { margin-top: 0; }
+  .advisory-list { margin: 0 0 4px; padding-left: 20px; color: var(--muted); }
+  .advisory-list li { margin-bottom: 4px; line-height: 1.5; }
+  .advisory-list strong { color: var(--text); }
+  ol.advisory-list li { padding-left: 4px; }
+
+  .tool-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px;
+    margin-bottom: 24px;
+  }
+  .tool-panel h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 20px;
+    margin: 0 0 4px;
+  }
+  .tool-panel .sub { color: var(--muted); font-size: 13px; margin: 0 0 18px; }
+  .tool-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 12px;
+    align-items: end;
+  }
+  .tool-field { display: flex; flex-direction: column; gap: 6px; }
+  .tool-field label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .tool-field input,
+  .tool-field select,
+  .tool-field textarea {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 9px 10px;
+    border-radius: 6px;
+    width: 100%;
+  }
+  .tool-field textarea {
+    min-height: 88px;
+    resize: vertical;
+    line-height: 1.45;
+  }
+  .tool-field input[type="file"] { padding: 7px 10px; }
+  .tool-field input:focus-visible,
+  .tool-field select:focus-visible,
+  .tool-field textarea:focus-visible {
+    outline: 2px solid var(--rain);
+    outline-offset: 1px;
+  }
+  .tool-field.span-2 { grid-column: span 2; }
+  .tool-result {
+    margin-top: 16px;
+    color: var(--muted);
+    line-height: 1.55;
+  }
+  .tool-result p { margin: 8px 0 0; }
+  .tool-result strong { color: var(--text); }
+  .tool-result .badge { margin: 0 0 8px; }
+
+  .state-msg {
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    padding: 20px 0;
+  }
+  .state-msg.error { color: var(--high); }
+
+  .sim-panel {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+  }
+  .sim-field { display: flex; flex-direction: column; gap: 6px; }
+  .sim-field label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .sim-panel select, .sim-panel input[type="number"] {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 10px;
+    border-radius: 6px;
+    min-width: 160px;
+  }
+  .sim-panel input[type="number"] { min-width: 90px; }
+  .sim-panel select:focus-visible, .sim-panel input:focus-visible {
+    outline: 2px solid var(--rain); outline-offset: 1px;
+  }
+  .sim-actions { display: flex; gap: 8px; margin-left: auto; }
+  #simulateBtn { border-color: var(--high); }
+  #simulateBtn:hover { background: color-mix(in srgb, var(--high) 15%, var(--panel)); }
+  .sim-badge {
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--high);
+    border: 1px solid var(--high);
+    border-radius: 20px;
+    padding: 2px 8px;
+    margin-left: 8px;
+  }
+  .incident-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 50% 50% 50% 0;
+    background: var(--high);
+    color: #fff;
+    border: 2px solid #0B1420;
+    display: grid;
+    place-items: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    font-weight: 600;
+    transform: rotate(-45deg);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+  }
+  .incident-icon span { transform: rotate(45deg); }
+  .report-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--rain);
+    color: #07111D;
+    border: 2px solid #0B1420;
+    display: grid;
+    place-items: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pulse { animation: none; }
+    .gauge-fill { transition: none; }
+  }
+
+  @media (max-width: 680px) {
+    .tool-field.span-2 { grid-column: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <p class="eyebrow"><span class="pulse"></span> Live Flood Monitoring</p>
+      <h1>UrbanFlood <span>Intelligence</span></h1>
+    </div>
+    <div class="meta">
+      <div id="lastUpdated">Last updated —</div>
+      <button id="refreshBtn" onclick="loadData()">Refresh data</button>
+    </div>
+  </header>
+
+  <div class="sim-panel">
+    <div class="sim-field">
+      <label for="simZoneSelect">Simulate storm — zone</label>
+      <select id="simZoneSelect"><option value="">Loading zones…</option></select>
+    </div>
+    <div class="sim-field">
+      <label for="simMmInput">Rainfall (mm / 3 hrs)</label>
+      <input type="number" id="simMmInput" value="12" min="0" step="0.5">
+    </div>
+    <div class="sim-actions">
+      <button id="simulateBtn" onclick="runSimulation()">Simulate storm</button>
+      <button id="resetSimBtn" onclick="resetSimulation()">Reset to live data</button>
+    </div>
+  </div>
+
+  <section class="map-section">
+    <div class="map-head">
+      <h2>Flood Risk Map — Hubballi</h2>
+      <div class="map-actions">
+        <button id="incidentToggle" onclick="toggleIncidents()">Show historical incidents</button>
+        <button id="reportToggle" onclick="toggleReports()">Show citizen reports</button>
+      </div>
+    </div>
+    <div id="map"></div>
+  </section>
+
+  <div id="zonesContainer"></div>
+
+  <details class="outlook">
+    <summary>3-Day Risk Outlook</summary>
+    <div class="outlook-body" id="forecastContainer">
+      <p class="state-msg">Loading 3-day forecast...</p>
+    </div>
+  </details>
+
+  <section class="advisory">
+    <h2>AI Advisory</h2>
+    <p class="sub">Generated by Gemini from current rainfall and risk-zone data</p>
+    <div id="advisoryContainer">
+      <p class="state-msg">Loading advisory…</p>
+    </div>
+  </section>
+
+  <section class="advisory">
+    <h2>Priority Action Plan</h2>
+    <p class="sub">Ranked by Gemini from the current citywide risk picture</p>
+    <div id="priorityContainer">
+      <p class="state-msg">Loading priority actions...</p>
+    </div>
+  </section>
+
+  <section class="tool-panel">
+    <h2>Analyze a Location Photo</h2>
+    <p class="sub">Upload a field photo for a visible flood-risk readout.</p>
+    <form class="tool-form" onsubmit="analyzePhoto(event)">
+      <div class="tool-field">
+        <label for="photoInput">Photo</label>
+        <input type="file" id="photoInput" name="photo" accept="image/*" required>
+      </div>
+      <div class="tool-field">
+        <label for="photoZoneInput">Zone name</label>
+        <input type="text" id="photoZoneInput" placeholder="Optional">
+      </div>
+      <div class="tool-field span-2">
+        <label for="photoNotesInput">Notes</label>
+        <input type="text" id="photoNotesInput" placeholder="Optional field notes">
+      </div>
+      <button id="photoAnalyzeBtn" type="submit">Analyze</button>
+    </form>
+    <div id="photoResult" class="tool-result"></div>
+  </section>
+
+  <section class="tool-panel">
+    <h2>Citizen Flood Reports</h2>
+    <p class="sub">Submit a field report and plot it on the map.</p>
+    <form class="tool-form" onsubmit="submitReport(event)">
+      <div class="tool-field">
+        <label for="reportZoneSelect">Zone</label>
+        <select id="reportZoneSelect" onchange="setReportCoordsFromZone()">
+          <option value="">Loading zones...</option>
+        </select>
+      </div>
+      <div class="tool-field">
+        <label for="reportLatInput">Latitude</label>
+        <input type="number" id="reportLatInput" step="0.0001" required>
+      </div>
+      <div class="tool-field">
+        <label for="reportLonInput">Longitude</label>
+        <input type="number" id="reportLonInput" step="0.0001" required>
+      </div>
+      <div class="tool-field span-2">
+        <label for="reportDescriptionInput">Description</label>
+        <textarea id="reportDescriptionInput" placeholder="Waterlogging, blocked drain, road access issue..." required></textarea>
+      </div>
+      <button id="reportSubmitBtn" type="submit">Submit Report</button>
+    </form>
+    <div id="reportResult" class="tool-result"></div>
+  </section>
+
+</div>
+
+<script>
+  // Uses the backend origin that serves /app; falls back to local dev when opened as a file.
+  const API_BASE = window.location.origin.startsWith('http') ? window.location.origin : "http://127.0.0.1:8000";
+
+  const levelColor = { Low: "var(--low)", Medium: "var(--medium)", High: "var(--high)" };
+  const levelFill  = { Low: "18%", Medium: "55%", High: "90%" };
+  const leafletColor = { Low: "#2E8B7C", Medium: "#D9A441", High: "#D14D4D" };
+  const chartColor = { Low: "#2E8B7C", Medium: "#D9A441", High: "#D14D4D" };
+
+  let simZone = null;
+  let simMm = null;
+  let zonesPopulated = false;
+  let map, mapMarkers = [];
+  let incidentMarkers = [];
+  let incidentsVisible = false;
+  let cachedIncidents = null;
+  let reportMarkers = [];
+  let reportsVisible = false;
+  let cachedReports = null;
+  let riskCharts = [];
+  let latestZones = [];
+
+  function escapeHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function initMap() {
+    map = L.map('map', { scrollWheelZoom: false }).setView([15.36, 75.12], 12);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; OpenStreetMap, &copy; CARTO'
+    }).addTo(map);
+  }
+
+  function incidentIcon() {
+    return L.divIcon({
+      className: '',
+      html: '<div class="incident-icon"><span>!</span></div>',
+      iconSize: [24, 24],
+      iconAnchor: [12, 24],
+      popupAnchor: [0, -24]
+    });
+  }
+
+  function reportIcon() {
+    return L.divIcon({
+      className: '',
+      html: '<div class="report-icon">R</div>',
+      iconSize: [24, 24],
+      iconAnchor: [12, 12],
+      popupAnchor: [0, -12]
+    });
+  }
+
+  function clearIncidentMarkers() {
+    incidentMarkers.forEach(m => map.removeLayer(m));
+    incidentMarkers = [];
+  }
+
+  function renderIncidents(incidents) {
+    clearIncidentMarkers();
+    incidents.forEach(incident => {
+      const marker = L.marker([incident.lat, incident.lon], { icon: incidentIcon() }).addTo(map);
+      marker.bindPopup(
+        `<b>${escapeHtml(incident.name)}</b><br>${escapeHtml(incident.date)}<br>${escapeHtml(incident.description)}`
+      );
+      incidentMarkers.push(marker);
+    });
+  }
+
+  async function toggleIncidents() {
+    if (!map) initMap();
+    const btn = document.getElementById('incidentToggle');
+
+    if (incidentsVisible) {
+      clearIncidentMarkers();
+      incidentsVisible = false;
+      btn.classList.remove('active');
+      btn.textContent = 'Show historical incidents';
+      return;
+    }
+
+    btn.disabled = true;
+    try {
+      if (!cachedIncidents) {
+        const res = await fetch(API_BASE + '/incidents');
+        if (!res.ok) throw new Error('incidents request failed');
+        cachedIncidents = await res.json();
+      }
+      renderIncidents(cachedIncidents);
+      incidentsVisible = true;
+      btn.classList.add('active');
+      btn.textContent = 'Hide historical incidents';
+    } catch (err) {
+      btn.textContent = 'Incidents unavailable';
+      setTimeout(() => { btn.textContent = 'Show historical incidents'; }, 1800);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function clearReportMarkers() {
+    reportMarkers.forEach(m => map.removeLayer(m));
+    reportMarkers = [];
+  }
+
+  function renderReports(reports) {
+    clearReportMarkers();
+    reports.forEach(report => {
+      const marker = L.marker([report.lat, report.lon], { icon: reportIcon() }).addTo(map);
+      marker.bindPopup(
+        `<b>${escapeHtml(report.zone_name || 'Citizen report')}</b><br>${escapeHtml(report.timestamp || '')}<br>${escapeHtml(report.description)}`
+      );
+      reportMarkers.push(marker);
+    });
+  }
+
+  async function toggleReports() {
+    if (!map) initMap();
+    const btn = document.getElementById('reportToggle');
+
+    if (reportsVisible) {
+      clearReportMarkers();
+      reportsVisible = false;
+      btn.classList.remove('active');
+      btn.textContent = 'Show citizen reports';
+      return;
+    }
+
+    btn.disabled = true;
+    try {
+      const res = await fetch(API_BASE + '/reports');
+      if (!res.ok) throw new Error('reports request failed');
+      cachedReports = await res.json();
+      renderReports(cachedReports);
+      reportsVisible = true;
+      btn.classList.add('active');
+      btn.textContent = 'Hide citizen reports';
+    } catch (err) {
+      btn.textContent = 'Reports unavailable';
+      setTimeout(() => { btn.textContent = 'Show citizen reports'; }, 1800);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function renderMapMarkers(zones) {
+    mapMarkers.forEach(m => map.removeLayer(m));
+    mapMarkers = [];
+
+    zones.forEach(z => {
+      const color = leafletColor[z.risk_level] || "#7C93A8";
+      const marker = L.circleMarker([z.lat, z.lon], {
+        radius: 12 + (z.risk_score * 10),
+        fillColor: color,
+        color: "#0B1420",
+        weight: 2,
+        fillOpacity: 0.85
+      }).addTo(map);
+
+      marker.bindPopup(
+        `<b>${escapeHtml(z.zone)}</b><br>Risk: <b>${z.risk_level}</b><br>Rainfall (3h): ${z.rainfall_next_3hrs_mm}mm<br>Score: ${z.risk_score}`
+      );
+      mapMarkers.push(marker);
+    });
+  }
+
+  function populateZoneDropdown(zones) {
+    if (zonesPopulated) return;
+    const select = document.getElementById('simZoneSelect');
+    select.innerHTML = zones.map(z => `<option value="${escapeHtml(z.zone)}">${escapeHtml(z.zone)}</option>`).join('');
+    const reportSelect = document.getElementById('reportZoneSelect');
+    reportSelect.innerHTML = zones.map(z => `<option value="${escapeHtml(z.zone)}">${escapeHtml(z.zone)}</option>`).join('');
+    zonesPopulated = true;
+    setReportCoordsFromZone();
+  }
+
+  function formatExplanation(text) {
+    let safe = escapeHtml(text);
+    safe = safe.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    const lines = safe.split(/\n+/).map(l => l.trim()).filter(Boolean);
+    let html = '';
+    let inList = false;
+    for (const line of lines) {
+      const bullet = line.replace(/^\*\s*/, '');
+      if (line.startsWith('*')) {
+        if (!inList) { html += '<ul class="advisory-list">'; inList = true; }
+        html += `<li>${bullet}</li>`;
+      } else {
+        if (inList) { html += '</ul>'; inList = false; }
+        html += `<p class="advisory-zone">${line}</p>`;
+      }
+    }
+    if (inList) html += '</ul>';
+    return html;
+  }
+
+  function formatPriorityPlan(text) {
+    let safe = escapeHtml(text);
+    safe = safe.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    const lines = safe.split(/\n+/).map(line => line.trim()).filter(Boolean);
+    const numberedLines = lines.filter(line => /^\d+[\).\s-]+/.test(line));
+    const sourceLines = numberedLines.length ? numberedLines : lines.filter(line => /^[-*]\s+/.test(line));
+    const items = sourceLines.map(line => line.replace(/^\d+[\).\s-]+/, '').replace(/^[-*]\s*/, ''));
+
+    if (!items.length) return '<p class="state-msg">No priority actions returned.</p>';
+    return `<ol class="advisory-list">${items.map(item => `<li>${item}</li>`).join('')}</ol>`;
+  }
+
+  function destroyRiskCharts() {
+    riskCharts.forEach(chart => chart.destroy());
+    riskCharts = [];
+  }
+
+  function renderForecast(forecast) {
+    const container = document.getElementById('forecastContainer');
+    destroyRiskCharts();
+
+    if (!forecast.length) {
+      container.innerHTML = '<p class="state-msg">No forecast data available.</p>';
+      return;
+    }
+
+    container.innerHTML = `<div class="forecast-grid">${forecast.map((zone, index) => {
+      const days = zone.daily_forecast || [];
+      if (!days.length) {
+        return `
+          <div class="forecast-card">
+            <h3>${escapeHtml(zone.zone)}</h3>
+            <p class="state-msg error">Forecast unavailable.</p>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="forecast-card">
+          <h3>${escapeHtml(zone.zone)}</h3>
+          <div class="chart-wrap"><canvas id="riskChart${index}" aria-label="${escapeHtml(zone.zone)} 3-day risk trend"></canvas></div>
+          <div class="daily-strip">
+            ${days.map(day => `
+              <span>
+                <strong>${escapeHtml(day.risk_level)}</strong>
+                ${escapeHtml(day.date.slice(5))}<br>${day.rainfall_mm}mm
+              </span>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }).join('')}</div>`;
+
+    forecast.forEach((zone, index) => {
+      const days = zone.daily_forecast || [];
+      const canvas = document.getElementById(`riskChart${index}`);
+      if (!canvas || !days.length) return;
+      const peakLevel = days.reduce((level, day) => day.risk_score > (level.score || -1) ? { name: day.risk_level, score: day.risk_score } : level, {}).name || 'Low';
+      const color = chartColor[peakLevel] || "#4A9FD9";
+
+      riskCharts.push(new Chart(canvas, {
+        type: 'line',
+        data: {
+          labels: days.map(day => day.date.slice(5)),
+          datasets: [{
+            data: days.map(day => day.risk_score),
+            borderColor: color,
+            backgroundColor: 'rgba(74,159,217,0.12)',
+            pointBackgroundColor: color,
+            pointBorderColor: '#0B1420',
+            pointRadius: 4,
+            tension: 0.35,
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { displayColors: false } },
+          scales: {
+            x: {
+              grid: { color: 'rgba(124,147,168,0.12)' },
+              ticks: { color: '#7C93A8', font: { family: 'IBM Plex Mono', size: 10 } }
+            },
+            y: {
+              min: 0,
+              max: 1,
+              grid: { color: 'rgba(124,147,168,0.12)' },
+              ticks: { color: '#7C93A8', font: { family: 'IBM Plex Mono', size: 10 }, stepSize: 0.25 }
+            }
+          }
+        }
+      }));
+    });
+  }
+
+  function riskBadge(level) {
+    const safeLevel = ['Low', 'Medium', 'High'].includes(level) ? level : 'Low';
+    return `<span class="badge" style="--level-color:${levelColor[safeLevel]}">${safeLevel} risk</span>`;
+  }
+
+  function setReportCoordsFromZone() {
+    const selected = document.getElementById('reportZoneSelect').value;
+    const zone = latestZones.find(z => z.zone === selected);
+    if (!zone) return;
+    document.getElementById('reportLatInput').value = Number(zone.lat).toFixed(4);
+    document.getElementById('reportLonInput').value = Number(zone.lon).toFixed(4);
+  }
+
+  async function analyzePhoto(event) {
+    event.preventDefault();
+    const btn = document.getElementById('photoAnalyzeBtn');
+    const result = document.getElementById('photoResult');
+    const fileInput = document.getElementById('photoInput');
+    if (!fileInput.files.length) return;
+
+    const formData = new FormData();
+    formData.append('photo', fileInput.files[0]);
+    formData.append('zone_name', document.getElementById('photoZoneInput').value.trim());
+    formData.append('notes', document.getElementById('photoNotesInput').value.trim());
+
+    btn.disabled = true;
+    btn.textContent = 'Analyzing...';
+    result.innerHTML = '<p class="state-msg">Analyzing photo...</p>';
+
+    try {
+      const res = await fetch(API_BASE + '/analyze-photo', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error('photo analysis request failed');
+      const data = await res.json();
+      if (data.visible_risk) {
+        result.innerHTML = `
+          ${riskBadge(data.visible_risk)}
+          <p><strong>Observations:</strong> ${escapeHtml(data.observations || 'No observations returned.')}</p>
+          <p><strong>Recommendation:</strong> ${escapeHtml(data.recommendation || 'No recommendation returned.')}</p>
+        `;
+      } else {
+        result.innerHTML = `<p>${escapeHtml(data.raw_assessment || 'Photo analysis returned no assessment.')}</p>`;
+      }
+    } catch (err) {
+      result.innerHTML = '<p class="state-msg error">Photo analysis unavailable right now.</p>';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Analyze';
+    }
+  }
+
+  async function submitReport(event) {
+    event.preventDefault();
+    const btn = document.getElementById('reportSubmitBtn');
+    const result = document.getElementById('reportResult');
+    const payload = {
+      zone_name: document.getElementById('reportZoneSelect').value,
+      description: document.getElementById('reportDescriptionInput').value.trim(),
+      lat: parseFloat(document.getElementById('reportLatInput').value),
+      lon: parseFloat(document.getElementById('reportLonInput').value)
+    };
+
+    if (!payload.description || Number.isNaN(payload.lat) || Number.isNaN(payload.lon)) return;
+
+    btn.disabled = true;
+    btn.textContent = 'Submitting...';
+    result.innerHTML = '<p class="state-msg">Submitting report...</p>';
+
+    try {
+      const res = await fetch(API_BASE + '/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error('report submit failed');
+      const report = await res.json();
+      document.getElementById('reportDescriptionInput').value = '';
+      result.innerHTML = `<p><strong>Report #${report.id} submitted.</strong> ${escapeHtml(report.description)}</p>`;
+
+      // Citizen reports are in-memory and reset on server restart; expected for this prototype.
+      cachedReports = null;
+      if (reportsVisible) {
+        const reportsRes = await fetch(API_BASE + '/reports');
+        cachedReports = await reportsRes.json();
+        renderReports(cachedReports);
+      }
+    } catch (err) {
+      result.innerHTML = '<p class="state-msg error">Could not submit the report right now.</p>';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Submit Report';
+    }
+  }
+
+  function renderZones(zones) {
+    latestZones = zones;
+    populateZoneDropdown(zones);
+
+    if (!map) initMap();
+    renderMapMarkers(zones);
+
+    const container = document.getElementById('zonesContainer');
+    if (!zones.length) {
+      container.innerHTML = '<p class="state-msg">No zone data available.</p>';
+      return;
+    }
+    container.innerHTML = `<div class="grid">${zones.map(z => `
+      <div class="card" style="--level-color:${levelColor[z.risk_level] || 'var(--muted)'}">
+        <div class="gauge-col">
+          <div class="gauge"><div class="gauge-fill" style="height:${levelFill[z.risk_level] || '4%'}; background:${levelColor[z.risk_level] || 'var(--rain)'}"></div></div>
+          <span class="gauge-label">${z.risk_score.toFixed(2)}</span>
+        </div>
+        <div class="card-body">
+          <p class="zone-name">${escapeHtml(z.zone)}${z.simulated ? '<span class="sim-badge">Simulated</span>' : ''}</p>
+          <span class="badge">${z.risk_level} risk</span>
+          <div class="readouts">
+            <div class="readout">
+              <div class="val">${z.rainfall_next_3hrs_mm}mm</div>
+              <div class="lbl">next 3 hrs</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `).join('')}</div>`;
+  }
+
+  function buildUrl(path) {
+    const url = new URL(API_BASE + path);
+    if (simZone && simMm !== null) {
+      url.searchParams.set('simulate_zone', simZone);
+      url.searchParams.set('simulate_mm', simMm);
+    }
+    return url.toString();
+  }
+
+  async function loadData() {
+    const btn = document.getElementById('refreshBtn');
+    btn.disabled = true;
+    btn.textContent = 'Refreshing…';
+
+    try {
+      const zonesRes = await fetch(buildUrl('/risk-zones'));
+      if (!zonesRes.ok) throw new Error('risk-zones request failed');
+      const zones = await zonesRes.json();
+      renderZones(zones);
+    } catch (err) {
+      document.getElementById('zonesContainer').innerHTML =
+        `<p class="state-msg error">Can't reach the flood intelligence backend. Make sure main.py is running on port 8000, then hit refresh.</p>`;
+    }
+
+    try {
+      const forecastRes = await fetch(API_BASE + '/risk-zones/forecast');
+      if (!forecastRes.ok) throw new Error('risk-zones forecast request failed');
+      const forecast = await forecastRes.json();
+      renderForecast(forecast);
+    } catch (err) {
+      destroyRiskCharts();
+      document.getElementById('forecastContainer').innerHTML =
+        `<p class="state-msg error">3-day risk outlook unavailable right now.</p>`;
+    }
+
+    try {
+      const explainRes = await fetch(buildUrl('/explain'));
+      if (!explainRes.ok) throw new Error('explain request failed');
+      const data = await explainRes.json();
+      document.getElementById('advisoryContainer').innerHTML = formatExplanation(data.explanation);
+    } catch (err) {
+      document.getElementById('advisoryContainer').innerHTML =
+        `<p class="state-msg error">AI advisory unavailable right now.</p>`;
+    }
+
+    try {
+      const rankedRes = await fetch(buildUrl('/explain/ranked'));
+      if (!rankedRes.ok) throw new Error('ranked explanation request failed');
+      const data = await rankedRes.json();
+      document.getElementById('priorityContainer').innerHTML = formatPriorityPlan(data.action_plan);
+    } catch (err) {
+      document.getElementById('priorityContainer').innerHTML =
+        `<p class="state-msg error">Priority action plan unavailable right now.</p>`;
+    }
+
+    document.getElementById('lastUpdated').textContent =
+      (simZone ? 'Simulation active — ' : 'Last updated ') +
+      new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+    btn.disabled = false;
+    btn.textContent = 'Refresh data';
+  }
+
+  function runSimulation() {
+    const zone = document.getElementById('simZoneSelect').value;
+    const mm = parseFloat(document.getElementById('simMmInput').value);
+    if (!zone || isNaN(mm)) return;
+    simZone = zone;
+    simMm = mm;
+    document.getElementById('zonesContainer').innerHTML = '<p class="state-msg">Simulating storm…</p>';
+    document.getElementById('advisoryContainer').innerHTML = '<p class="state-msg">Loading advisory…</p>';
+    document.getElementById('priorityContainer').innerHTML = '<p class="state-msg">Loading priority actions...</p>';
+    loadData();
+  }
+
+  function resetSimulation() {
+    simZone = null;
+    simMm = null;
+    document.getElementById('zonesContainer').innerHTML = '<p class="state-msg">Loading live data…</p>';
+    document.getElementById('advisoryContainer').innerHTML = '<p class="state-msg">Loading advisory…</p>';
+    document.getElementById('priorityContainer').innerHTML = '<p class="state-msg">Loading priority actions...</p>';
+    loadData();
+  }
+
+  loadData();
+  setInterval(() => { if (!simZone) loadData(); }, 5 * 60 * 1000); // auto-refresh live data every 5 minutes
+</script>
+</body>
+</html>
