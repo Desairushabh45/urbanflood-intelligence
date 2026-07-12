@@ -97,7 +97,7 @@ uvicorn main:app --reload
 
 The app will be available at:
 
-- 🌐 **Dashboard** → `http://localhost:8000/app/index.html`
+- 🌐 **Dashboard** → https://urbanflood-intelligence.vercel.app/app/index.html
 - 📖 **API Docs (Swagger)** → `http://localhost:8000/docs`
 
 ---
